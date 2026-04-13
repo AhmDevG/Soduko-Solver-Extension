@@ -115,7 +115,6 @@ chrome.action.onClicked.addListener(async (tab) => {
         if (window.location.href === 'https://www.soduko-online.com/') {
             const board = buildBoard();
             sodokoSolver(board);
-            console.log(board);
             await putOnBoard(board);
             alert("This extension works");
         }
