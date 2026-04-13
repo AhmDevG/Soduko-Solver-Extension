@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Sodoku Solver",
+  "version": "1.0",
+  "description": "a Extension for solving a sodoku problems by parse the board and recursively solve it",
+
+  "action":{},
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "permissions": ["activeTab", "scripting"]
+}
