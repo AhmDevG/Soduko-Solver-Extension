@@ -1,73 +1,75 @@
 chrome.action.onClicked.addListener(async (tab) => {
     chrome.scripting.executeScript({
         target: { tabId: tab.id },
+        world: "MAIN",
         func: async () => {
 
-            /**
-             * Builds a board on the given DOM element.
-             * returns {Array} An array of the board's cells.
-             */
-            function buildBoard(){
-                const board = [
-                    [".",".",".",".",".",".",".",".","."],
-                    [".",".",".",".",".",".",".",".","."],
-                    [".",".",".",".",".",".",".",".","."],
-                    [".",".",".",".",".",".",".",".","."],
-                    [".",".",".",".",".",".",".",".","."],
-                    [".",".",".",".",".",".",".",".","."],
-                    [".",".",".",".",".",".",".",".","."],
-                    [".",".",".",".",".",".",".",".","."],
-                    [".",".",".",".",".",".",".",".","."],
-                ];
+            console.log("🚀 solver started");
 
-                for(let i = 0 ; i < 9 ; i++) {
-                    const current_quarter = document.querySelector(`.sz${i}`);
-                    const childrens = Array.from(current_quarter.children);
-                    childrens.forEach(element => {
-                        if(element.textContent.trim() != ""){
-                            const [_ , col , row] = element.id.split("_");
-                            board[row][col] = element.textContent;
-                        }
-                    });
+            /**
+             * Builds a board from the internal model (z2).
+             * returns {Array} board
+             */
+            function buildBoard() {
+                const model = window.z2;
+
+                if (!model || !model.v) {
+                    console.log("❌ z2 not available");
+                    return null;
+                }
+
+                const board = Array.from({ length: 9 }, () =>
+                    Array(9).fill(".")
+                );
+
+                for (let y = 0; y < 9; y++) {
+                    for (let x = 0; x < 9; x++) {
+                        const val = model.v[y * 9 + x];
+                        board[y][x] = val === 0 ? "." : String(val);
+                    }
                 }
 
                 return board;
-
             }
 
             /**
-             * @param {Array} board 
-             * @param {number} row  
-             * @param {number} k  
-             * returns {number} col 
+             * @param {Array} board
+             * @param {number} row
+             * @param {number} col
+             * @param {number|string} k
              */
             function isValid(board, row, col, k) {
                 for (let i = 0; i < 9; i++) {
-                    const m = 3 * Math.floor(row / 3) + Math.floor(i / 3);
-                    const n = 3 * Math.floor(col / 3) + i % 3;
-                    if (board[row][i] == k || board[i][col] == k || board[m][n] == k) {
+                    const br = 3 * Math.floor(row / 3) + Math.floor(i / 3);
+                    const bc = 3 * Math.floor(col / 3) + (i % 3);
+
+                    if (
+                        board[row][i] == k ||
+                        board[i][col] == k ||
+                        board[br][bc] == k
+                    ) {
                         return false;
                     }
                 }
                 return true;
             }
 
-
             /**
-             * @param {Array} board 
+             * @param {Array} board
              */
             function sodokoSolver(board) {
-                for (let i = 0; i < 9; i++) {
-                    for (let j = 0; j < 9; j++) {
-                        if (board[i][j] == '.') {
+                for (let r = 0; r < 9; r++) {
+                    for (let c = 0; c < 9; c++) {
+                        if (board[r][c] === ".") {
                             for (let k = 1; k <= 9; k++) {
-                                if (isValid(board, i, j, k)) {
-                                    board[i][j] = `${k}`;
+                                if (isValid(board, r, c, k)) {
+                                    board[r][c] = String(k);
+
                                     if (sodokoSolver(board)) {
                                         return true;
-                                    } else {
-                                        board[i][j] = '.';
                                     }
+
+                                    board[r][c] = ".";
                                 }
                             }
                             return false;
@@ -77,50 +79,63 @@ chrome.action.onClicked.addListener(async (tab) => {
                 return true;
             }
 
-
             function sleep(ms) {
                 return new Promise(resolve => setTimeout(resolve, ms));
             }
 
-            /*
-             * @param {Array} board 
+            /**
+             * @param {Array} board
              */
-            async function putOnBoard(board){
-                const number_buttons_parent = document.querySelector(".r5");
-                const childrens_buttons = Array.from(number_buttons_parent.children);
+            async function putOnBoard(board) {
+                const model = window.z2;
 
-                for(let i = 0 ; i < 9 ; i++){
-                    for(let j = 0 ; j < 9 ; j++){
-                        const current_block = document.getElementById(`c_${j}_${i}`);
-
-                        if(current_block.textContent.trim() == ""){
-                            const solution_value = Number(board[i][j]);
-
-                            childrens_buttons[solution_value-1].click();
-
-                            await sleep(1000);
-
-                            current_block.click();
-
-                            await sleep(1500);
-                    }
-                    else{
-                        continue;
-                    }
-
+                if (!model || !model.vq) {
+                    console.log("❌ model API not available");
+                    return;
                 }
-            }
-}
 
-        if (window.location.href === 'https://www.soduko-online.com/') {
-            const board = buildBoard();
-            sodokoSolver(board);
-            await putOnBoard(board);
-            alert("This extension works");
+                let filled = 0;
+
+                for (let y = 0; y < 9; y++) {
+                    for (let x = 0; x < 9; x++) {
+                        const idx = y * 9 + x;
+
+                        if (model.v[idx] === 0) {
+                            const val = Number(board[y][x]);
+
+                            model.vq(model.xj, 1, x, y, val);
+                            model.vr();
+
+                            filled++;
+                            await sleep(50);
+                        }
+                    }
+                }
+
+                console.log("✅ filled cells:", filled);
+            }
+
+            if (window.location.href === "https://www.soduko-online.com/") {
+
+                const board = buildBoard();
+
+                if (!board) return;
+
+                const ok = sodokoSolver(board);
+
+                if (!ok) {
+                    console.log("❌ no solution found");
+                    return;
+                }
+
+                console.table(board);
+
+                await putOnBoard(board);
+
+                alert("This extension works");
+            } else {
+                alert("This extension only works on 'https://www.soduko-online.com/'");
+            }
         }
-        else{
-            alert("This extension only works on 'https://www.soduko-online.com/'");
-        }
-    }
-  });
+    });
 });
